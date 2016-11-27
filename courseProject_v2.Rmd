@@ -1,0 +1,140 @@
+---
+title: "Human activity recognition with wearable accelerometers: course project"
+author: "Chun Fang"
+date: "11/27/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, we try to train a model base on the data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. We use this model to predict the manner in which they did the exercise, which corresponding to the "classe" variable of data set.
+
+
+## Data
+
+The training data used for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from the source: http://groupware.les.inf.puc-rio.br/har
+
+We download these data and save them in a separate folder, named "data", of present work directory of R.
+
+```{r data}
+fileUrl_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileUrl_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+if (!file.exists("./data")) {
+    dir.create("./data")
+}
+if (!file.exists("./data/pml-training.csv")) {
+    download.file(fileUrl_train, destfile = "./data/pml-training.csv")
+}
+if (!file.exists("./data/pml-testing.csv")) {
+    download.file(fileUrl_test, destfile = "./data/pml-testing.csv")
+}
+```
+
+
+## Pre-Processing
+In this section, we will detect the data and do exploratory analysis.
+
+First, load and check the data. Note that the missing value are coded as strings  "NA", "#DIV/0!" or "".
+```{r pre-processing-1, cache=TRUE, warning=FALSE, results='hide'}
+pml_train <- read.csv(file = "./data/pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+pml_test <- read.csv(file = "./data/pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+str(pml_train)
+```
+
+```{r}
+if (!file.exists("./data/pml_train_NA.csv")) {
+    write.csv(pml_train, file = "./data/pml_train_NA.csv")
+}
+```
+
+After checking the data, i.e., $pml\_train\_NA.csv$, one can find there are lots of "NA" values. Therefore, it is better to remove those variables whose proportion of "NA" are bigger than 95%.
+
+```{r}
+l <- dim(pml_train)[2]
+n <- dim(pml_train)[1]
+NA_var_95 <- rep(0, l)
+for (i in 1:l) {
+    if (sum(is.na(pml_train[, i])) / n > 0.95) {
+        NA_var_95[i] = 1
+    }
+}
+```
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+library(dplyr)
+pml_train_noNA <- select(pml_train, which(NA_var_95==0))
+pml_test_noNA <- select(pml_test, which(NA_var_95==0))
+```
+
+Take a look at the data again.
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+str(pml_train_noNA)
+summary(pml_train_noNA)
+```
+
+From above results, we find the variables $"X", "user\_name", "raw\_timestamp\_part\_1", "raw\_timestamp\_part\_2", "cvtd_timestamp", "new\_window"", "num\_window"$ have less relation with the prediction of manners. Hence, we decided to remove them too. We also find from the result of summary function that the difference among values of the variables are big. However, we will leave them the same since we are going to use random forest algorithm for the modeling.
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+pml_train_pre <- select(pml_train_noNA, -c(X, user_name, raw_timestamp_part_1,
+                                            raw_timestamp_part_2, cvtd_timestamp,
+                                            new_window, num_window))
+pml_test_pre <- select(pml_test_noNA, -c(X, user_name, raw_timestamp_part_1,
+                                            raw_timestamp_part_2, cvtd_timestamp,
+                                            new_window, num_window))
+```
+
+## Modeling and training
+Recall that we aim to find a model with good prediction accuracy. Random forest algorithm is a good choice, at least should not worse than linear classification. Of course, for a better prediction, one can also try ensemble learning. But we only use the first mentioned method in this project.
+
+```{r}
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(pml_train_pre$classe, p = 0.8, list = FALSE)
+training <- pml_train_pre[inTrain, ]
+testing <- pml_train_pre[-inTrain, ]
+```
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+library(randomForest)
+```
+
+```{r cache=TRUE, warning=FALSE, results='hide'}
+rfModel <- randomForest(classe ~ ., data = training, importance = TRUE)
+prediction_train <- predict(rfModel, training)
+confusionMatrix(prediction_train, training$classe)
+```
+
+Here is the cross validation part.
+
+```{r}
+prediction_test <- predict(rfModel, testing)
+confusionMatrix(prediction_test, testing$classe)
+```
+
+From the cross validation result, we know the expected out of sample error is about 99.4%.
+
+## Prediction
+Now we can make prediction for the given test set: $pml\_test\_pre$.
+```{r test}
+predict_for_test <- predict(rfModel, pml_test_pre)
+predict_for_test
+```
+
+```{r fig.width=9, fig.height=8}
+varImpPlot(rfModel)
+```
