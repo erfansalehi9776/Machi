@@ -126,7 +126,7 @@ prediction_test <- predict(rfModel, testing)
 confusionMatrix(prediction_test, testing$classe)
 ```
 
-From the cross validation result, we know the expected out of sample error is about 99.4%.
+From the cross validation result, we know the expected out of sample error is about 0.6%.
 
 ## Prediction
 Now we can make prediction for the given test set: $pml\_test\_pre$.
