@@ -1,0 +1,4 @@
+Good References
+
+1. https://github.com/zhangxudongsteven/ProgrammingAssignment2
+   merits: used many models to fit this problem
